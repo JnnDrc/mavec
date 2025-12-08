@@ -101,6 +101,7 @@
 // ----------------------------------------------------------------------------|
 
 #include <stdlib.h>
+#include <stdio.h>
 
 // 202000L := C23 initial scratch; 202311L := C23 release
 #if (__STDC_VERSION__ >= 202000L || defined(__GNUC__)) || defined(__clang__)
@@ -220,22 +221,16 @@ do{                                                                             
 #define vec_front(vec) vec[0]
 #define vec_back(vec)  vec[_vec_header(vec)->len - 1]
 
-// get item at index i in vector with type=safe bound checking (STDC >= C23 ONLY)
-#ifdef __MAVEC_USE_TYPEOF__
-#define vec_at(vec,i) (i < 0 || i > _vec_header(vec)->len) ? (typeof(*vec)){0} : vec[i]
+// get item at index i in vector with type-safe bound checking
+#define vec_at(vec,i)  ((i < 0 || i > _vec_header(vec)->len) ? (printf("PANIC: index out of bounds at %s:%d (%s)", __FILE__, __LINE__, __func__), abort()) : (void)0, vec[i])
 #define vec_get(vec,i) vec_at(vec,i)
-#else
-#define vec_at(vec,i,fallback) (i < 0 || i > _vec_header(vec)->len) ? fallback : vec[i]
-#define vec_get(vec,i,fallback) vec_at(vec,i,fallback)
-#endif /* __MAVEC_USE_TYPEOF__ */
 // set value at index i in vector with bounds checking
-#define vec_set(vec,i,val) if(i > 0 && i < _vec_header(vec)->len) vec[i] = val
-
+#define vec_set(vec,i,val) (i < 0 || i > _vec_header(vec)->len ? (printf("PANIC: index out of bounds at %s:%d (%s)", __FILE__, __LINE__, __func__), abort()) : (void)0, vec[i] = val)
 // get vector capacity
 #define vec_cap(vec) _vec_header(vec)->cap
-
 // get vector length
 #define vec_len(vec) _vec_header(vec)->len
+
 // check if vector is empty
 #define vec_empty(vec) (_vec_header(vec)->len == 0)
 
