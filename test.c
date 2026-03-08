@@ -3,14 +3,14 @@
 #include "mavec.h"
 
 int main(void){
-    int* vec = vec_new(int);
+    Vec(int) vec = vec(int);
 
     for(int i = 0; i <= 20; i++){
         vec_push(vec,i*i);
     }
 
     vec_insert(vec, 4, 69);
-    
+    vec_put(vec,501);
     vec_foreach_enum(num, i, vec){
         printf("%llu:%d\n",i, num);
     }
@@ -19,6 +19,7 @@ int main(void){
     printf("cap is %zu\n", vec_cap(vec));
 
     vec_remove(vec,4);
+    vec_pull(vec);
     printf("removed 4, now len is %zu\n", vec_len(vec));
     
     vec_free(vec);

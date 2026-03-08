@@ -37,12 +37,17 @@
  *  >> vec_free(nums);
  *
  * * Docs:
+ * 
+ * * Vec(T): alias to T*, for better reading
  *
  * * vec_new(T): create a new vector of type T
+ * - aliases: vec
  * * vec_free(vec): free the vector
  *
  * * vec_push(vec,val): push a value to the end of the vector
  * * vec_pop(vec): pop the last value from the vector (and return it)
+ * * vec_put(vec, val): put a value to the start of the vector
+ * * vec_pull(vec): pull the first value from the vector (and return it)
  * * vec_insert(vec,i,val): insert value val at index i in vector
  * * vec_remove(vec,i): remove value at index i in vector
  * * vec_fill(vec,i,n,val): fill the vector with #n vals, starting from j
@@ -56,8 +61,7 @@
  * * vec_front(vec): get value at front (0)
  * * vec_back(vec): get value at back (len-1)
  *
- * * vec_at(vec,i): get value at index i with bounds checking (STDC >= 23 ONLY)
- * - no typeof version: vec_at(item, vec,fallback)
+ * * vec_at(vec,i): get value at index i with bounds checking
  * - aliases: vec_get
  * * vec_set(vec,i,val): set index i to val
  *
@@ -82,20 +86,11 @@
  * * typeof is also available on older gcc and clang as extensions
  *
  * * if you want, you can change the initial size of vectors, just define
- * VEC_INIT_CAP (number)
- * * it's highly recomende to the cap be an multiple of 2, as the vector
+ * VEC_INIT_CAP (number) before the include
+ * * it's highly recomended to the cap be an multiple of 2, as the vector
  * capacity is always rounded to the nearest multiple of VEC_INIT_CAP
  *
- *
  * by Jayy :3
- * */
-
-/*
- * TODO:
- *
- * * vec_push_front(vec,val): push value to the start of vector
- * * vec_pop_front(vec): pop the value at the start of vector
- *
  * */
 
 // ----------------------------------------------------------------------------|
@@ -127,7 +122,9 @@ struct vec_header {
 #define _vec_header(vec) ((struct vec_header*)vec - 1)
 
 // create new vector
-#define vec_new(T) calloc(1,sizeof(struct vec_header) + VEC_INIT_CAP * sizeof(T)) + sizeof(struct vec_header)
+#define vec_new(T) (T*)((char*)calloc(1,sizeof(struct vec_header) + VEC_INIT_CAP * sizeof(T)) + sizeof(struct vec_header))
+#define vec(T)    vec_new(T)
+#define Vec(T) T*
 
 // free vector 
 #define vec_free(vec) free((char*)vec - sizeof(struct vec_header))
@@ -138,8 +135,9 @@ do {                                                                            
     struct vec_header* vh = _vec_header(vec);                                                                   \
     if(vh->len + 1 >= vh->cap){                                                                                 \
         if(vh->cap == 0) vh->cap = VEC_INIT_CAP;                                                                \
-        else vh->cap = (((vh->len + VEC_INIT_CAP)/VEC_INIT_CAP) * VEC_INIT_CAP);                                \
+        else vh->cap *= 2;                                                                                      \
         vec = realloc(vh,sizeof(struct vec_header) + vh->cap * sizeof(*vec)) + sizeof(struct vec_header);       \
+        vh = _vec_header(vec);                                                                                  \
     }                                                                                                           \
     vec[vh->len++] = val;                                                                                       \
 } while (0)
@@ -147,19 +145,39 @@ do {                                                                            
 // pop last value from vector (and return it, like a stack)
 #define vec_pop(vec) vec[--_vec_header(vec)->len]
 
+#define vec_put(vec, val)                                                                                       \
+do {                                                                                                            \
+    struct vec_header* vh = _vec_header(vec);                                                                   \
+    if(vh->len + 1 >= vh->cap){                                                                                 \
+        if(vh->cap == 0) vh->cap = VEC_INIT_CAP;                                                                \
+        else vh->cap *= 2;                                                                                      \
+        vec = realloc(vh,sizeof(struct vec_header) + vh->cap * sizeof(*vec)) + sizeof(struct vec_header);       \
+        vh = _vec_header(vec);                                                                                  \
+    }                                                                                                           \
+    for(size_t i = vh->len; i > 0; i--) vec[i] = vec[i-1];                                                      \
+    vec[0] = val;                                                                                               \
+    vh->len++;                                                                                                  \
+} while(0)
+
+#define vec_pull(vec)                                       \
+do {                                                        \
+    struct vec_header* vh = _vec_header(vec);               \
+    for(size_t i = 0; i < vh->len; i++) vec[i] = vec[i+1];  \
+    vh->len--;                                              \
+}while(0);
+
 // insert value at index i
 #define vec_insert(vec,i,val)                                                                                   \
 do {                                                                                                            \
     struct vec_header* vh = _vec_header(vec);                                                                   \
     if(vh->len + 1 >= vh->cap){                                                                                 \
         if(vh->cap == 0) vh->cap = VEC_INIT_CAP;                                                                \
-        else vh->cap = (((vh->len + VEC_INIT_CAP)/VEC_INIT_CAP) * VEC_INIT_CAP);                                \
+        else vh->cap *= 2;                                                                                      \
         vec = realloc(vh,sizeof(struct vec_header) + vh->cap * sizeof(*vec)) + sizeof(struct vec_header);       \
+        vh = _vec_header(vec);                                                                                  \
     }                                                                                                           \
-    for(size_t j = vh->len-1; j >= i; j--){                                                                     \
-        vec[j+1] = vec[j];                                                                                      \
-    }                                                                                                           \
-    vec[i] =  val;                                                                                              \
+    for(size_t j = vh->len; j > i; j--) vec[j] = vec[j-1];                                                      \
+    vec[i] = val;                                                                                               \
     vh->len++;                                                                                                  \
 }while (0)                                                                                                     
 
@@ -167,9 +185,8 @@ do {                                                                            
 #define vec_remove(vec,i)                       \
 do {                                            \
     struct vec_header* vh = _vec_header(vec);   \
-    for (size_t j = i; j < vh->len; j++) {      \
+    for (size_t j = i; j < vh->len; j++)        \
         vec[j] = vec[j+1];                      \
-    }                                           \
     vh->len--;                                  \
 }while (0)
 
@@ -200,8 +217,9 @@ do{                                                                             
     struct vec_header* vh = _vec_header(vec);                                                                   \
     if(vh->len + items >= vh->cap){                                                                             \
         if(vh->cap == 0) vh->cap = VEC_INIT_CAP;                                                                \
-        else vh->cap = (((vh->len + items + VEC_INIT_CAP)/VEC_INIT_CAP) * VEC_INIT_CAP);                        \
+        else vh->cap *= 2;                                                                                      \
         vec = realloc(vh,sizeof(struct vec_header) + vh->cap * sizeof(*vec)) + sizeof(struct vec_header);       \
+        vh = _vec_header(vec);                                                                                  \
     }                                                                                                           \
 }while (0)
 
@@ -211,8 +229,9 @@ do{                                                                             
     struct vec_header* vh = _vec_header(vec);                                                               \
     if(cap >= vh->cap){                                                                                     \
         if(vh->cap == 0) vh->cap = VEC_INIT_CAP;                                                            \
-        else vh->cap = (((cap + VEC_INIT_CAP)/VEC_INIT_CAP) * VEC_INIT_CAP);                                \
+        else vh->cap *= 2;                                                                                  \
         vec = realloc(vh,sizeof(struct vec_header) + vh->cap * sizeof(*vec)) + sizeof(struct vec_header);   \
+        vh = _vec_header(vec);                                                                              \
     }                                                                                                       \
 }while (0);
 
@@ -222,10 +241,11 @@ do{                                                                             
 #define vec_back(vec)  vec[_vec_header(vec)->len - 1]
 
 // get item at index i in vector with type-safe bound checking
-#define vec_at(vec,i)  ((i < 0 || i > _vec_header(vec)->len) ? (printf("PANIC: index out of bounds at %s:%d (%s)", __FILE__, __LINE__, __func__), abort()) : (void)0, vec[i])
+#define vec_at(vec,i)  ((i < 0 || i > _vec_header(vec)->len) ? (fprintf(stderr,"PANIC: index out of bounds at %s:%d (%s)", __FILE__, __LINE__, __func__), abort()) : (void)0, vec[i])
 #define vec_get(vec,i) vec_at(vec,i)
 // set value at index i in vector with bounds checking
-#define vec_set(vec,i,val) (i < 0 || i > _vec_header(vec)->len ? (printf("PANIC: index out of bounds at %s:%d (%s)", __FILE__, __LINE__, __func__), abort()) : (void)0, vec[i] = val)
+#define vec_set(vec,i,val) (i < 0 || i > _vec_header(vec)->len ? (fprintf(stderr,"PANIC: index out of bounds at %s:%d (%s)", __FILE__, __LINE__, __func__), abort()) : (void)0, vec[i] = val)
+
 // get vector capacity
 #define vec_cap(vec) _vec_header(vec)->cap
 // get vector length
